@@ -13,9 +13,9 @@ def load_token():
 
 
 headers = {
-        'Authorization': f'Bearer {load_token()}',
-        'Content-Type': 'application/json'
-    }
+    'Authorization': f'Bearer {load_token()}',
+    'Content-Type': 'application/json'
+}
 
 
 # httpリクエスト送信
@@ -34,17 +34,37 @@ def convert_df(df, index=True):
 
 
 # ユーザー数の取得
-def search_active_user():
+def get_total_user(per_page=50):
     url = 'https://api.kickflow.com/v1/users'
     payload = {
-        'perPage': 50,
-        'status': 'active',
+        'perPage': per_page,
     }
-
     response = get_request(url, headers, payload)
     result = response.headers
     # headerにあるトータル件数を抽出
     return result['Total']
+
+
+med_user = 0
+ccnc_user = 0
+
+
+def get_active_user(max_page, per_page=50):
+    df_concat = pd.DataFrame()
+    url = 'https://api.kickflow.com/v1/users'
+    page_count = 1
+    while page_count <= max_page:
+        payload = {
+            'page': page_count,
+            'perPage': per_page,
+            'status': 'active',
+        }
+
+        response = get_request(url, headers, payload)
+        result = json.loads(response.text)
+        _df = pd.DataFrame(result)
+        page_count += 1
+    return _df
 
 
 
@@ -52,7 +72,7 @@ def search_active_user():
 def search_unregistered_user():
     url = 'https://api.kickflow.com/v1/users'
     payload = {
-        'page' : 1,
+        'page': 1,
         'perPage': 25,
         'status': 'invited',
     }
@@ -89,8 +109,8 @@ def get_workflow_list():
 
 def get_date(from_time, until_time):
     from_time = datetime(from_time.year, from_time.month, from_time.day, 9)
-    until_time = datetime(until_time.year, until_time.month, until_time.day, 8,59)
-    return (from_time, until_time)
+    until_time = datetime(until_time.year, until_time.month, until_time.day, 8, 59)
+    return from_time, until_time
 
 
 def get_invoice_ticket(id, from_time, until_time):
@@ -111,8 +131,7 @@ def get_invoice_ticket(id, from_time, until_time):
     return invoice_df
 
 
-
-def main():
+def main(per_page=50):
     """
     アプリケーションのメイン機能
     :return:
@@ -124,10 +143,9 @@ def main():
 
     selector = st.sidebar.selectbox(
         'select box',
-        ['選択してください', 'ワークフロー一覧', '未登録ユーザー', '支払申請']
-        )
+        ['選択してください', 'ワークフロー一覧', 'ユーザー情報', '支払申請']
+    )
     btn = st.sidebar.button('データ表示')
-
 
     if selector == 'ワークフロー一覧':
         if btn:
@@ -146,8 +164,18 @@ def main():
                 mime='text/csv',
             )
 
-    elif selector == '未登録ユーザー':
+    elif selector == 'ユーザー情報':
+        # トータルユーザー数取得
+        total_users = get_total_user()
+        max_page = int(total_users) // per_page + 1
+        header_txt = f'登録ユーザー数 : ＜{total_users} 人＞'
+        st.subheader(header_txt)
+
         if btn:
+            # アクティブユーザ一覧の取得
+            # df = get_active_user(max_page=max_page)
+            # st.write(df)
+
             # 未登録ユーザ取得の処理
             # データ取得
             df = search_unregistered_user()
@@ -199,7 +227,7 @@ def main():
                 st.write('完了チケットはありません')
 
             try:
-                df_invoice_capital_invest= get_invoice_ticket(id_capital_invest, from_date, until_date)
+                df_invoice_capital_invest = get_invoice_ticket(id_capital_invest, from_date, until_date)
                 header_text = f'支払申請（設備） 完了チケット数 : <{df_invoice_capital_invest.shape[0]}件>'
                 st.subheader(header_text)
                 st.dataframe(df_invoice_capital_invest)
