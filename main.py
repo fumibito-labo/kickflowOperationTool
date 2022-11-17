@@ -1,6 +1,7 @@
 import json
-import requests as rq
+import matplotlib.pyplot as plt
 import pandas as pd
+import requests as rq
 import streamlit as st
 from datetime import datetime
 
@@ -60,7 +61,7 @@ def get_users(max_page, per_page=50):
         result = json.loads(response.text)
 
         df_ = pd.DataFrame(result)
-        df_ = df_[['fullName', 'email', 'code', 'status']]
+        df_ = df_[['fullName', 'email', 'code', 'createdAt', 'status']]
         df_user = pd.concat([df_user, df_], axis=0)
     return df_user
 
@@ -77,39 +78,17 @@ def get_unregistered_users(df):
     return unregistered_user_df
 
 
-# def get_active_user(max_page, per_page=50):
-#     df_concat = pd.DataFrame()
-#     url = 'https://api.kickflow.com/v1/users'
-#     page_count = 1
-#     while page_count <= max_page:
-#         payload = {
-#             'page': page_count,
-#             'perPage': per_page,
-#             'status': 'active',
-#         }
-#
-#         response = get_request(url, headers, payload)
-#         result = json.loads(response.text)
-#         _df = pd.DataFrame(result)
-#         page_count += 1
-#     return _df
+# メディアスユーザー抽出
+def get_med_user(df):
+    med_user_df = df[df['email'].str.contains('medias.co.jp')]
+    med_user_count = med_user_df.shape[0]
+    return med_user_count
 
 
-# # 未登録ユーザ一覧の取得
-# def search_unregistered_user():
-#     url = 'https://api.kickflow.com/v1/users'
-#     payload = {
-#         'page': 1,
-#         'perPage': 25,
-#         'status': 'invited',
-#     }
-#
-#     response = get_request(url, headers, payload)
-#     result = json.loads(response.text)
-#
-#     df = pd.DataFrame(result)
-#     return df
-
+def get_ccnc_user(df):
+    ccnc_user_df = df[df['email'].str.contains('tac-net.co.jp')]
+    ccnc_user_count = ccnc_user_df.shape[0]
+    return ccnc_user_count
 
 # 使用中のワークフロー一覧取得
 def get_workflow_list():
@@ -190,6 +169,7 @@ def main(per_page=50):
             )
 
     elif selector == 'ユーザー情報':
+        st.subheader('アカウント状況')
         col1, col2, col3 = st.columns(3)
         # トータルユーザー数取得
         total_users = get_total_user()
@@ -209,14 +189,34 @@ def main(per_page=50):
             except Exception:
                 col3.metric('未登録ユーザー', '0人')
 
-            # # 必要カラムの抽出
-            # df_unregistered_user = df[['code', 'fullName', 'email', 'createdAt']]
-            # st.dataframe(df_unregistered_user)
+            st.write('---')
+            st.subheader('ユーザー属性')
+            container_user = st.container()
+            col_1, col_2 = container_user.columns(2)
+            med_count = get_med_user(users)
+            ccnc_count = get_ccnc_user(users)
+            col_1.metric('MEDIAS', f'{med_count}人')
+            col_2.metric('CCNC', f'{ccnc_count}人')
+
+            st.write('---')
+            st.subheader('未登録ユーザーリスト')
+            unregistered_filter_list = unregistered_user[['fullName', 'email', 'code', 'createdAt']]
+            st.dataframe(unregistered_filter_list)
 
     elif selector == '支払申請':
-        col1, col2, col3, col4 = st.columns(4)
-        from_date = st.sidebar.date_input('completedAtStart')
-        until_date = st.sidebar.date_input('completedAtEnd')
+        st.subheader('期間指定')
+        container0 = st.container()
+        container1 = st.container()
+        container2 = st.container()
+        container3 = st.container()
+        container4 = st.container()
+        container5 = st.container()
+
+        col_from, col_until = container0.columns(2)
+        from_date = col_from.date_input('From')
+        until_date = col_until.date_input('To')
+
+        col1, col2, col3, col4 = container1.columns(4)
 
         if btn:
             id_invoice = 'd40bd97c-a3eb-4f57-a4e7-6e1811e9474f'
@@ -227,28 +227,40 @@ def main(per_page=50):
             try:
                 df_invoice = get_invoice_ticket(id_invoice, from_date, until_date)
                 col1.metric('請求書支払',  f'{df_invoice.shape[0]}件')
-                col1.dataframe(df_invoice)
+                with container2:
+                    st.write('---')
+                    st.write('#### 完了リスト: 請求書')
+                    st.dataframe(df_invoice)
 
             except Exception:
                 col1.metric('請求書支払',  '0件')
             try:
                 df_invoice_credit = get_invoice_ticket(id_credit, from_date, until_date)
                 col2.metric('クレジット支払', f'{df_invoice_credit.shape[0]}件')
-                col2.dataframe(df_invoice_credit)
+                with container3:
+                    st.write('---')
+                    st.write('#### 完了リスト： クレジット')
+                    st.dataframe(df_invoice_credit)
 
             except Exception:
                 col2.metric('クレジット支払', '0件')
             try:
                 df_invoice_direct_debit = get_invoice_ticket(id_direct_debit, from_date, until_date)
                 col3.metric('口座引落支払', f'{df_invoice_direct_debit.shape[0]}件')
-                st.dataframe(df_invoice_direct_debit)
+                with container4:
+                    st.write('---')
+                    st.write('#### 完了リスト： 口座引落')
+                    st.dataframe(df_invoice_direct_debit)
             except Exception:
                 col3.metric('口座引落支払', '0件')
 
             try:
                 df_invoice_capital_invest = get_invoice_ticket(id_capital_invest, from_date, until_date)
                 col4.metric('設備支払', f'{df_invoice_capital_invest.shape[0]}件>')
-                st.dataframe(df_invoice_capital_invest)
+                with container5:
+                    st.write('---')
+                    st.write('#### 完了リスト： 設備')
+                    st.dataframe(df_invoice_capital_invest)
             except Exception:
                 col4.metric('設備支払', '0件')
 
