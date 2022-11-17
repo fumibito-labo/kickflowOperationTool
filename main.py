@@ -33,7 +33,7 @@ def convert_df(df, index=True):
     return df.to_csv().encode('cp932')
 
 
-# ユーザー数の取得
+# ユーザー数(登録数)の取得
 def get_total_user(per_page=50):
     url = 'https://api.kickflow.com/v1/users'
     payload = {
@@ -45,43 +45,70 @@ def get_total_user(per_page=50):
     return result['Total']
 
 
-med_user = 0
-ccnc_user = 0
-
-
-def get_active_user(max_page, per_page=50):
-    df_concat = pd.DataFrame()
+# ユーザー一覧を取得
+def get_users(max_page, per_page=50):
+    cnt_list = [i + 1 for i in range(max_page)]
     url = 'https://api.kickflow.com/v1/users'
-    page_count = 1
-    while page_count <= max_page:
+    df_user = pd.DataFrame(columns=['fullName', 'email', 'code', 'status'])
+    for cnt in cnt_list:
         payload = {
-            'page': page_count,
+            'page': cnt,
             'perPage': per_page,
-            'status': 'active',
         }
 
         response = get_request(url, headers, payload)
         result = json.loads(response.text)
-        _df = pd.DataFrame(result)
-        page_count += 1
-    return _df
+
+        df_ = pd.DataFrame(result)
+        df_ = df_[['fullName', 'email', 'code', 'status']]
+        df_user = pd.concat([df_user, df_], axis=0)
+    return df_user
 
 
+# アクティブユーザを取得
+def get_active_users(df):
+    active_user_df = df.query('status == "activated"')
+    return active_user_df
 
-# 未登録ユーザ一覧の取得
-def search_unregistered_user():
-    url = 'https://api.kickflow.com/v1/users'
-    payload = {
-        'page': 1,
-        'perPage': 25,
-        'status': 'invited',
-    }
 
-    response = get_request(url, headers, payload)
-    result = json.loads(response.text)
+# 未登録ユーザを取得
+def get_unregistered_users(df):
+    unregistered_user_df = df.query('status == "invited"')
+    return unregistered_user_df
 
-    df = pd.DataFrame(result)
-    return df
+
+# def get_active_user(max_page, per_page=50):
+#     df_concat = pd.DataFrame()
+#     url = 'https://api.kickflow.com/v1/users'
+#     page_count = 1
+#     while page_count <= max_page:
+#         payload = {
+#             'page': page_count,
+#             'perPage': per_page,
+#             'status': 'active',
+#         }
+#
+#         response = get_request(url, headers, payload)
+#         result = json.loads(response.text)
+#         _df = pd.DataFrame(result)
+#         page_count += 1
+#     return _df
+
+
+# # 未登録ユーザ一覧の取得
+# def search_unregistered_user():
+#     url = 'https://api.kickflow.com/v1/users'
+#     payload = {
+#         'page': 1,
+#         'perPage': 25,
+#         'status': 'invited',
+#     }
+#
+#     response = get_request(url, headers, payload)
+#     result = json.loads(response.text)
+#
+#     df = pd.DataFrame(result)
+#     return df
 
 
 # 使用中のワークフロー一覧取得
@@ -127,66 +154,67 @@ def get_invoice_ticket(id, from_time, until_time):
     result = json.loads(response.text)
 
     df = pd.DataFrame(result)
-    invoice_df = df[['id', 'ticketNumber', 'title', 'completedAt']]
+    invoice_df = df[['ticketNumber', 'title', 'id', 'completedAt']]
     return invoice_df
 
 
 def main(per_page=50):
     """
     アプリケーションのメイン機能
-    :return:
     """
-    st.header('Control Tool for kickflow')
+    st.header('Dash Board for "kickflow"')
 
     # sidebar
-    st.sidebar.title('control panel')
+    st.sidebar.title('sidebar widget')
 
     selector = st.sidebar.selectbox(
         'select box',
-        ['選択してください', 'ワークフロー一覧', 'ユーザー情報', '支払申請']
+        ['選択してください', 'ワークフロー', 'ユーザー情報', '支払申請']
     )
     btn = st.sidebar.button('データ表示')
 
-    if selector == 'ワークフロー一覧':
+    if selector == 'ワークフロー':
         if btn:
             # ワークフロー一覧取得用の処理
             df_workflow = get_workflow_list()
-            header_text = f'ワークフロー一覧 : <{df_workflow.shape[0]}件>'
-            st.subheader(header_text)
+            st.metric('ワークフロー リスト', f'{df_workflow.shape[0]} 件')
 
             st.dataframe(df_workflow)
             workflow_list_csv = convert_df(df_workflow)
 
             st.download_button(
-                label='[ ワークフロー一覧 ] as csv',
+                label='[ ワークフロー 一覧 ] as csv',
                 data=workflow_list_csv,
-                file_name='result_journal_EOM.csv',
+                file_name='workflowList.csv',
                 mime='text/csv',
             )
 
     elif selector == 'ユーザー情報':
+        col1, col2, col3 = st.columns(3)
         # トータルユーザー数取得
         total_users = get_total_user()
         max_page = int(total_users) // per_page + 1
-        header_txt = f'登録ユーザー数 : ＜{total_users} 人＞'
-        st.subheader(header_txt)
+        col1.metric('登録ユーザー', f'{total_users}人')
+        users = get_users(max_page)
 
         if btn:
             # アクティブユーザ一覧の取得
-            # df = get_active_user(max_page=max_page)
-            # st.write(df)
+            active_user = get_active_users(users)
+            col2.metric('アクティブユーザー', f'{active_user.shape[0]}人')
 
             # 未登録ユーザ取得の処理
-            # データ取得
-            df = search_unregistered_user()
-            header_text = f'招待済み未登録ユーザー : <{df.shape[0]}人>'
-            st.subheader(header_text)
+            try:
+                unregistered_user = get_unregistered_users(users)
+                col3.metric('未登録ユーザー', f'{unregistered_user.shape[0]}人')
+            except Exception:
+                col3.metric('未登録ユーザー', '0人')
 
-            # 必要カラムの抽出
-            df_unregistered_user = df[['code', 'fullName', 'email', 'createdAt']]
-            st.dataframe(df_unregistered_user)
+            # # 必要カラムの抽出
+            # df_unregistered_user = df[['code', 'fullName', 'email', 'createdAt']]
+            # st.dataframe(df_unregistered_user)
 
     elif selector == '支払申請':
+        col1, col2, col3, col4 = st.columns(4)
         from_date = st.sidebar.date_input('completedAtStart')
         until_date = st.sidebar.date_input('completedAtEnd')
 
@@ -198,43 +226,31 @@ def main(per_page=50):
 
             try:
                 df_invoice = get_invoice_ticket(id_invoice, from_date, until_date)
-                header_text = f'支払申請（請求書） 完了チケット数 : <{df_invoice.shape[0]}件>'
-                st.subheader(header_text)
-                st.dataframe(df_invoice)
+                col1.metric('請求書支払',  f'{df_invoice.shape[0]}件')
+                col1.dataframe(df_invoice)
 
             except Exception:
-                st.subheader('支払申請（請求書）')
-                st.write('完了チケットはありません')
-
+                col1.metric('請求書支払',  '0件')
             try:
                 df_invoice_credit = get_invoice_ticket(id_credit, from_date, until_date)
-                header_text = f'支払申請（クレジット） 完了チケット数 : <{df_invoice_credit.shape[0]}件>'
-                st.subheader(header_text)
-                st.dataframe(df_invoice_credit)
+                col2.metric('クレジット支払', f'{df_invoice_credit.shape[0]}件')
+                col2.dataframe(df_invoice_credit)
 
             except Exception:
-                st.subheader('支払申請（クレジット）')
-                st.write('完了チケットはありません')
-
+                col2.metric('クレジット支払', '0件')
             try:
                 df_invoice_direct_debit = get_invoice_ticket(id_direct_debit, from_date, until_date)
-                header_text = f'支払申請（口座引落） 完了チケット数 : <{df_invoice_direct_debit.shape[0]}件>'
-                st.subheader(header_text)
+                col3.metric('口座引落支払', f'{df_invoice_direct_debit.shape[0]}件')
                 st.dataframe(df_invoice_direct_debit)
-
             except Exception:
-                st.subheader('支払申請（口座引落）')
-                st.write('完了チケットはありません')
+                col3.metric('口座引落支払', '0件')
 
             try:
                 df_invoice_capital_invest = get_invoice_ticket(id_capital_invest, from_date, until_date)
-                header_text = f'支払申請（設備） 完了チケット数 : <{df_invoice_capital_invest.shape[0]}件>'
-                st.subheader(header_text)
+                col4.metric('設備支払', f'{df_invoice_capital_invest.shape[0]}件>')
                 st.dataframe(df_invoice_capital_invest)
-
             except Exception:
-                st.subheader('支払申請（設備）')
-                st.write('完了チケットはありません')
+                col4.metric('設備支払', '0件')
 
     else:
         if btn:
