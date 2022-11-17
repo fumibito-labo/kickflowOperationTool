@@ -32,18 +32,19 @@ def get_request(url, headers, params):
 def convert_df(df, index=True):
     return df.to_csv().encode('cp932')
 
+
+# ユーザー数の取得
 def search_active_user():
     url = 'https://api.kickflow.com/v1/users'
     payload = {
-        'perPage': 100,
+        'perPage': 50,
         'status': 'active',
     }
 
     response = get_request(url, headers, payload)
-    result = json.loads(response.text)
-
-    df = pd.DataFrame(result)
-    return df
+    result = response.headers
+    # headerにあるトータル件数を抽出
+    return result['Total']
 
 
 
