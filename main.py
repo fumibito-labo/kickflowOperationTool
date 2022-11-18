@@ -1,5 +1,5 @@
 import json
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pandas as pd
 import requests as rq
 import streamlit as st
