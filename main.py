@@ -179,18 +179,18 @@ def main(per_page=50):
         col1.metric('登録ユーザー', f'{total_users}人')
         users = get_users(max_page)
 
+        # アクティブユーザ一覧の取得
+        active_user = get_active_users(users)
+        col2.metric('アクティブユーザー', f'{active_user.shape[0]}人')
+
+        # 未登録ユーザ取得の処理
+        try:
+            unregistered_user = get_unregistered_users(users)
+            col3.metric('未登録ユーザー', f'{unregistered_user.shape[0]}人')
+        except Exception:
+            col3.metric('未登録ユーザー', '0人')
+
         if btn:
-            # アクティブユーザ一覧の取得
-            active_user = get_active_users(users)
-            col2.metric('アクティブユーザー', f'{active_user.shape[0]}人')
-
-            # 未登録ユーザ取得の処理
-            try:
-                unregistered_user = get_unregistered_users(users)
-                col3.metric('未登録ユーザー', f'{unregistered_user.shape[0]}人')
-            except Exception:
-                col3.metric('未登録ユーザー', '0人')
-
             st.write('---')
             st.subheader('ユーザー属性')
             container_user = st.container()
