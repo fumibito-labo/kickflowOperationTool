@@ -7,11 +7,13 @@ from datetime import datetime
 
 
 def load_token():
-    with open('kickflow_api.json') as api_f:
-        kickflow_token = json.load(api_f)
-        TOKEN = kickflow_token['token']
+    try:
+        with open('api.json') as api_f:
+            kickflow_token = json.load(api_f)
+            TOKEN = kickflow_token['token']
+    except Exception:
+        TOKEN = st.secrets['TOKEN']
     return TOKEN
-
 
 headers = {
     'Authorization': f'Bearer {load_token()}',
